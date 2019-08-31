@@ -1,0 +1,7 @@
+*.a
+*.exe
+*.ngram
+*.o
+*.txt
+dist
+ngram
