@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < 256; i++) {
 		if (!(i % 8))
 			fprintf(stdout, "\n");
-		fprintf(stdout, "%02x:%4lu ", i, b[i]);
+		fprintf(stdout, "%02x: %-4lu ", i, b[i]);
 	}
 	fprintf(stdout, "\n");
 

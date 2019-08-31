@@ -1,5 +1,5 @@
-CFLAGS=-Wall -Wextra -std=c99 -pedantic -g
-TARGET=ngram
+CFLAGS  = -Wall -Wextra -std=c99 -pedantic -g
+TARGET  = ngram
 AR      = ar
 ARFLAGS = rcs
 RANLIB  = ranlib
@@ -14,6 +14,7 @@ run: ${TARGET}
 ${TARGET}: lib${TARGET}.a main.o
 
 test: ngram.c.ngram
+	./${TARGET} -b
 
 check:
 	cppcheck --enable=all *.c
@@ -22,7 +23,7 @@ clean:
 	git clean -dfx
 
 %.ngram: % ${TARGET}
-	./${TARGET} -l 2 -H 3 < $< > $@ 
+	${TRACER} ./${TARGET} -v -l 2 -H 5 < $< > $@
 
 lib${TARGET}.a: ${TARGET}.o
 	${AR} ${ARFLAGS} $@ $<

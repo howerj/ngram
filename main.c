@@ -1,11 +1,17 @@
+/* Test driver for n-gram generation library
+ * <https://github.com/howerj/ngram */
 #include "ngram.h"
 #include <assert.h>
+#include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
+#include <time.h>
 
 #define UNUSED(X) ((void)(X))
+#define MIN(X, Y) ((X) < (Y) ? (X) : (Y))
+#define MAX(X, Y) ((X) < (Y) ? (Y) : (X))
 
 #ifdef _WIN32 /* Used to unfuck file mode for "Win"dows. Text mode is for losers. */
 #include <windows.h>
@@ -24,7 +30,14 @@ typedef struct {
 	    reset;   /* set to reset */
 	char *place; /* internal use: scanner position */
 	int  init;   /* internal use: initialized or not */
-} ngram_getopt_t;   /* getopt clone; with a few modifications */
+} ngram_getopt_t;    /* getopt clone; with a few modifications */
+
+typedef struct {
+	double avg_len;
+	size_t min_len, max_len, ngrams;
+} ngram_stats_t;
+
+static int ignore_case = 0;
 
 static int hexCharToNibble(int c) {
 	c = tolower(c);
@@ -35,7 +48,10 @@ static int hexCharToNibble(int c) {
 
 static int file_get(void *in) {
 	assert(in);
-	return fgetc((FILE*)in);
+	const int r = fgetc((FILE*)in);
+	if (ignore_case && r != EOF)
+		return tolower(r);
+	return r;
 }
 
 static int file_put(int ch, void *out) {
@@ -93,7 +109,6 @@ static int unescape(char *r, size_t length) {
 	}
 	return k;
 }
-
 
 /* Adapted from: <https://stackoverflow.com/questions/10404448>,
  * and then from <https://github.com/howerj/pickle> in 'main.c'. */
@@ -162,10 +177,9 @@ static void *duplicate(const void *d, size_t l) {
 	return r ? memcpy(r, d, l) : r;
 }
 
-
 static int usage(const char *arg0) {
 	static const char *fmt ="\
-usage: %s [-h] [-d delimiters] [-w] [-l integer] [-H integer] [-n length]\n\n\
+usage: %s [-hibtwWvt] [-d delimiters] [-lH integer] [-n length]\n\n\
 Project : ngram - generate n-grams from arbitrary data\n\
 Author  : Richard James Howe\n\
 License : Public Domain\n\
@@ -176,28 +190,76 @@ the program works on textual or binary data. Output is in the form\n\
 of escaped strings. Non-zero is returned on error.\n\n\
 Options:\n\n\
   -h        print this help message and exit successfully\n\
+  -i        ignore case by converting upper to lower case\n\
+  -b        run built in self tests\n\
+  -t        tree print instead of on n-gram per line\n\
+  -v        increase verbosity\n\
   -d string use a list of delimiters, binary values are in hex, '\\xHH'\n\
   -w        use white space as a set of delimiters\n\
+  -W        use any character that is not alphanumeric as a delimiter\n\
   -l #      minimum n-gram count to print, maximum if -H not used\n\
   -H #      maximum n-gram count to generate\n\
   -n #      instead of using a delimiter, read # in bytes at a time\n\n";
-
 	return fprintf(stderr, fmt, arg0);
 }
 
+static int prepare_set(uint8_t set[static 256], int (*comp)(int ch), int invert) {
+	size_t j = 0;
+	for (size_t i = 0; i < 256; i++)
+		if (invert ^ !!comp(i))
+			set[j++] = i;
+	return j;
+}
+
+static size_t count(ngram_t *n) {
+	if (!n)
+		return 0;
+	size_t r = !!(n->ml);
+	for (size_t i = 0; i < n->nl; i++)
+		r += count(n->ns[i]);
+	return r;
+}
+
+static size_t total_bytes(ngram_t *n, ngram_stats_t *s) {
+	if (!n)
+		return 0;
+	size_t r = n->ml;
+	if (n->ml) /* do not count root node */
+		s->min_len = MIN(r, s->min_len);
+	s->max_len = MAX(r, s->max_len);
+	for (size_t i = 0; i < n->nl; i++)
+		r += total_bytes(n->ns[i], s);
+	return r;
+}
+
+static int stats(ngram_t *n, ngram_stats_t *s) {
+	assert(s);
+	s->ngrams = count(n);
+	s->min_len = n->nl ? SIZE_MAX : 0;
+	if (s->ngrams)
+		s->avg_len = ((double)total_bytes(n, s)) / (double)(s->ngrams);
+	return 0;
+}
+
 int main(int argc, char **argv) {
-	uint8_t *delims = NULL, whitespace[] = { ' ', '\t', '\n', '\r', '\v', '\f' };
+	uint8_t *delims = NULL;
+	uint8_t set[256] = { 0 };
 	char *odelim = NULL;
 	size_t dl = 0;
-	int min = -1, max = -1, bcount = 1;
+	int min = -1, max = -1, bcount = 1, verbose = 0, tree = 0;
 	ngram_getopt_t opt = { .init = 0 };
-	for (int ch = 0; (ch = ngram_getopt(&opt, argc, argv, "hl:H:d:wn:")) != -1;) {
+	for (int ch = 0; (ch = ngram_getopt(&opt, argc, argv, "hibtvl:H:d:wWn:")) != -1;) {
 		switch (ch) {
 		case 'h': usage(argv[0]); return 0;
+		case 'i': ignore_case = 1; break;
+		case 'b': return -!!ngram_tests();
+		case 't': tree = 1; break;
+		case 'v': verbose++; break;
 		case 'l': min = atoi(opt.arg); break;
 		case 'H': max = atoi(opt.arg); break;
 		case 'd': delims = duplicate(opt.arg, strlen(opt.arg)); odelim = opt.arg; break;
-		case 'w': delims = whitespace; dl = sizeof whitespace; break;
+		case 'w': delims = set; dl = prepare_set(set, isspace, 0); break;
+		case 'W': delims = set; dl = prepare_set(set, isalnum, 1); break;
 		case 'n': bcount = atoi(opt.arg); break;
 		default:
 			fprintf(stderr, "bad arg -- %c\n", ch);
@@ -217,7 +279,7 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	if (delims && delims != whitespace) {
+	if (delims && delims != set) {
 		const int r = unescape((char*)delims, strlen(odelim));
 		if (r < 0) {
 			fprintf(stderr, "invalid escape list -- %s\n", odelim);
@@ -227,14 +289,32 @@ int main(int argc, char **argv) {
 	}
 
 	ngram_io_t io = { .get = file_get, .put = file_put, .in = stdin, .out = stdout, };
+	clock_t begin = clock();
 	ngram_t *root = ngram(&io, max, delims, delims ? dl : (unsigned)bcount);
+	clock_t end = clock();
+	const double time = (double)(end - begin) / CLOCKS_PER_SEC;
 	if (!root) {
 		fprintf(stderr, "ngram generation failed\n");
 		return 1;
 	}
-	if (ngram_print(root, &io, min, max) < 0) {
+	if (ngram_print(root, &io, delims == NULL, tree, min, max) < 0) {
 		fprintf(stderr, "ngram print failed\n");
 		return 1;
+	}
+	if (verbose) {
+		ngram_stats_t st = { .avg_len = 0 };
+		if (stats(root, &st) < 0)
+			return 2;
+		if (fprintf(stderr, "time:   %.3fs\n", time) < 0)
+			return 1;
+		if (fprintf(stderr, "ngrams: %u\n", (unsigned)st.ngrams) < 0)
+			return 1;
+		if (fprintf(stderr, "avg ln: %g\n", st.avg_len) < 0)
+			return 1;
+		if (fprintf(stderr, "min ln: %u\n", (unsigned)st.min_len) < 0)
+			return 1;
+		if (fprintf(stderr, "max ln: %u\n", (unsigned)st.max_len) < 0)
+			return 1;
 	}
 	ngram_free(root);
 	return 0;

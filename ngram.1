@@ -1,0 +1,44 @@
+.\" Manpage for ngram
+.\" Contact howe.r.j.89@gmail.com to correct errors or typos.
+.TH ngram 1 "31 Aug 2019" "1.0.0" "ngram man page"
+.SH NAME
+ngram \- n-gram generation filter
+.SH SYNOPSIS
+ngram [-hibtwWvt] [-d delimiters] [-lH integer] [-n length]
+.SH DESCRIPTION
+Generate n-grams from textual or non-textual (ie. binary) data. N-gram length
+and delimiter can be controlled.
+
+.SH OPTIONS
+
+For a list of options issue the command "./ngram -h". Alternatively, go to the
+projects home page at <https://github.com/howerj/ngram>.
+
+.SH EXAMPLES
+
+To generate or all the n-grams of length 2 to 5 of the words in a text file:
+
+.nf
+\& ./ngram -l 2 -H 5 -W < 1984.txt > 1984.ngrams
+.fi
+
+.SH EXIT STATUS
+
+Returns non-zero value on failure condition, and zero on success. Error
+messages should be written to stderr(3) along with any statistics and other
+messages. stdout(3) is reserved for the output of the program.
+
+.SH LIMITATIONS
+
+There are no known limitations on this program.
+
+.SH BUGS
+For any bugs, contact the author.
+
+.SH AUTHOR
+Richard James Howe (howe.r.j.89@gmail.com)
+
+.SH COPYRIGHT
+
+Placed in the public domain, if possible in your country. If not - just do
+whatever you want with it.
