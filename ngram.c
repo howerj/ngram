@@ -16,7 +16,9 @@
  * - [ ] implement binary search insertion to speed up n-gram generation
  * - [x] allow binary values to be escaped in delimiter string
  * - [x] optional tree printing
- * - [ ] add unit tests
+ * - [ ] use txt2man to generate manual page?
+ * - [ ] add unit tests, assertions, and test fragments of input
+ * - [x] allow more of the output format to be specified.
  * - [ ] allow regex as a delimiter (will require a binary regex engine),
  *   adapt the regex engine from <https://github.com/howerj/pickle>.
  * - [x] add options; n-gram min/max, ignore case?, specify delimiters, ...
@@ -36,7 +38,8 @@
 #define DEBUGGING (1)
 #endif
 
-#define SEPERATOR  ","
+#define QUOTE_LEFT  "\""
+#define QUOTE_RIGHT "\""
 #define BINARY_SEARCH (1)
 #define MIN(X, Y) ((X) < (Y) ? (X) : (Y))
 
@@ -71,12 +74,14 @@ static int sput(const char *s, ngram_io_t *io) {
 	return i;
 }
 
-static int output(unsigned count, int docount, int merge, uint8_t *m, size_t l, ngram_io_t *io) {
+static int output(unsigned count, int docount, const ngram_print_t *p, const uint8_t *m, size_t l, ngram_io_t *io) {
 	assert(m);
+	assert(p);
 	assert(io);
 	size_t r = 0;
-	if (!merge) {
-		if (sput("\"", io) < 0)
+
+	if (!(p->merge)) {
+		if (sput(QUOTE_LEFT, io) < 0)
 			return -1;
 		r++;
 	}
@@ -106,13 +111,17 @@ static int output(unsigned count, int docount, int merge, uint8_t *m, size_t l, 
 	}
 	if (docount) {
 		char buf[32] = { 0 };
-		int spf = snprintf(buf, sizeof buf, "%s" SEPERATOR "%u", merge ? "" : "\"", (unsigned)count);
+		int spf = snprintf(buf, sizeof buf, "%s%c%u", p->merge ? "" : QUOTE_RIGHT, p->sep, (unsigned)count);
 		if (spf < 0)
 			return -1;
-		int p = sput(buf, io);
-		r += p;
-	} else if (!merge) {
-		if (sput("\"" SEPERATOR, io) < 0)
+		const int q = sput(buf, io);
+		if (q < 0)
+			return -1;
+		r += q;
+	} else if (!(p->merge)) {
+		if (sput(QUOTE_RIGHT , io) < 0)
+			return -1;
+		if (put(p->sep, io) < 0)
 			return -1;
 		r += 2;
 	}
@@ -143,23 +152,15 @@ static int unmk(ngram_t *n) {
 	return 0;
 }
 
-static inline int compare(void *m, void *n, size_t cnt, int nocase) {
+static inline int compare(void *m, void *n, size_t cnt) {
 	assert(m);
 	assert(n);
-	char *mc = m, *nc = n;
-	if (nocase) {
-		for (size_t i = 0; i < cnt; i++) {
-			int diff = tolower(mc[i]) - tolower(nc[i]);
-			if (diff)
-				return diff;
-		}
-		return 0;
-	}
 	return memcmp(m, n, cnt);
 }
 
 static int grow(ngram_t *tree, ngram_t *n) {
 	assert(tree);
+	assert(n);
 	ngram_t **old = tree->ns;
 	tree->ns = realloc(tree->ns, (tree->nl + 1) * sizeof *tree->ns);
 	if (!(tree->ns)) {
@@ -178,7 +179,7 @@ static int grow(ngram_t *tree, ngram_t *n) {
 				tree->ns[i] = n;
 				break;
 			}
-			const int m = compare(chld->m, n->m, MIN(chld->ml, n->ml), 0);
+			const int m = compare(chld->m, n->m, MIN(chld->ml, n->ml));
 			//assert(m || chld->ml != n->ml); /* should not be inserting already existing nodes */
 			if (m > 0) {
 				memmove(&tree->ns[i + 1], &tree->ns[i], (tree->nl - i) * sizeof *tree->ns);
@@ -197,7 +198,7 @@ static int grow(ngram_t *tree, ngram_t *n) {
 static int is(ngram_t *n, v_t *v) {
 	assert(n);
 	assert(v);
-	return n->ml == v->l && !compare(n->m, v->m, v->l, 0);
+	return n->ml == v->l && !compare(n->m, v->m, v->l);
 }
 
 static ngram_t *find(ngram_t *n, v_t *v) {
@@ -211,7 +212,7 @@ static ngram_t *find(ngram_t *n, v_t *v) {
 			long m = l + (r - l) / 2;
 			ngram_t *chld = n->ns[m];
 			/* if v->l != chld->ml optimize by checking last character */
-			const int k = compare(chld->m, v->m, MIN(chld->ml, v->l), 0);
+			const int k = compare(chld->m, v->m, MIN(chld->ml, v->l));
 			if (!k && chld->ml == v->l)
 				return chld;
 			if (k > 0)
@@ -254,8 +255,9 @@ static int repeat(ngram_io_t *io, int ch, int cnt) {
 	return cnt;
 }
 
-static int print_tree(ngram_t *n, ngram_io_t *io, int min, int max, int depth) {
+static int print_tree(const ngram_t *n, ngram_io_t *io, const ngram_print_t *p, int depth) {
 	assert(io);
+	assert(p);
 	if (!n)
 		return 0;
 	int r = 0;
@@ -265,7 +267,7 @@ static int print_tree(ngram_t *n, ngram_io_t *io, int min, int max, int depth) {
 		if (k < 0)
 			return -1;
 		r += k;
-		const int j = output(n->cnt, depth >= (min - 1), 0, n->m, n->ml, io);
+		const int j = output(n->cnt, depth >= (p->min - 1), p, n->m, n->ml, io);
 		if (j < 0)
 			return -1;
 		r += j;
@@ -275,7 +277,7 @@ static int print_tree(ngram_t *n, ngram_io_t *io, int min, int max, int depth) {
 	r += 1;
 	const size_t l = n->nl;
 	for (size_t i = 0; i < l; i++) {
-		const int k = print_tree(n->ns[i], io, min, max, depth + !root);
+		const int k = print_tree(n->ns[i], io, p, depth + !root);
 		if (k < 0)
 			return -1;
 		r += k;
@@ -283,53 +285,55 @@ static int print_tree(ngram_t *n, ngram_io_t *io, int min, int max, int depth) {
 	return r;
 }
 
-static int print_up(ngram_t *n, ngram_io_t *io, int merge) {
+static int print_up(const ngram_t *n, ngram_io_t *io, const ngram_print_t *p) {
 	assert(io);
+	assert(p);
 	if (!n)
 		return 0;
 	int r = 0;
-	const int j = print_up(n->parent, io, merge);
+	const int j = print_up(n->parent, io, p);
 	if (j < 0)
 		return -1;
 	r++;
 	if (n->ml) {
-		const int p = output(0, 0, merge, n->m, n->ml, io);
-		if (p < 0)
+		const int q = output(0, 0, p, n->m, n->ml, io);
+		if (q < 0)
 			return -1;
-		r += p;
+		r += q;
 	}
 	return 0;
 }
 
-static int print_line(ngram_t *n, ngram_io_t *io, int merge, int min, int max, int depth)  {
+static int print_line(const ngram_t *n, ngram_io_t *io, const ngram_print_t *p, int depth)  {
 	assert(io);
+	assert(p);
 	if (!n)
 		return 0;
 	int r = 0;
 	for (size_t i = 0; i < n->nl; i++) {
-		const int j = print_line(n->ns[i], io, merge, min, max, depth + 1);
+		const int j = print_line(n->ns[i], io, p, depth + 1);
 		if (j < 0)
 			return -1;
 		r += j;
 	}
-	if (depth >= min && n->cnt) {
+	if (depth >= p->min && n->cnt) {
 		char buf[32] = { 0 };
-		if (snprintf(buf, sizeof buf, "%u,", (unsigned)n->cnt) < 0)
+		if (snprintf(buf, sizeof buf, "%u%c", (unsigned)n->cnt, p->sep) < 0)
 			return -1;
 		const int q = sput(buf, io);
 		if (q < 0)
 			return -1;
 		r += q;
-		if (merge) {
+		if (p->merge) {
 			const int k = put('"', io);
 			if (k < 0)
 				return -1;
 			r++;
 		}
-		const int j = print_up(n, io, merge);
+		const int j = print_up(n, io, p);
 		if (j < 0)
 			return -1;
-		if (merge) {
+		if (p->merge) {
 			const int k = put('"', io);
 			if (k < 0)
 				return -1;
@@ -348,7 +352,7 @@ static int token(ngram_io_t *io, v_t **out, const int lmode, const uint8_t *deli
 	*out = NULL;
 	size_t i = 0;
 	v_t *n = NULL, *o = NULL;
-	if (lmode) {
+	if (lmode) { /* tokenize into bytes */
 		if (!(n = malloc(sizeof (*n) + dlen)))
 			return -1;
 		for (i = 0; i < dlen; i++) {
@@ -361,7 +365,7 @@ static int token(ngram_io_t *io, v_t **out, const int lmode, const uint8_t *deli
 			free(n);
 			return 0;
 		}
-	} else {
+	} else { /* split into words */
 		int ch = 0;
 		assert(delim);
 again:
@@ -407,9 +411,11 @@ ngram_t *ngram(ngram_io_t *io, const int max, const uint8_t *delimiters, const s
 		free(ls);
 		return NULL;
 	}
-	/* we could also add a set of characters to ignore, but we could just
-	* preprocess the text instead instead of adding complexity in here */
-	for (int j = 0;;j += j < max) {
+	/*We could also add a set of characters to ignore, but we could just
+	* preprocess the text instead of adding complexity in here, this
+	* could be done in the I/O callback, adding case insensitivity or
+	* ignoring character sets */
+	for (int j = 1;;j += j < max) {
 		v_t *v = NULL;
 		if (token(io, &v, !use_delimiters, delimiters, length) < 0)
 			goto fail;
@@ -418,9 +424,8 @@ ngram_t *ngram(ngram_io_t *io, const int max, const uint8_t *delimiters, const s
 		free(ls[0]);
 		memmove(ls, ls + 1, (max - 1) * sizeof *ls);
 		ls[max - 1] = v;
-		if (j >= max)
-			if (add(root, ls, max) < 0)
-				goto fail;
+		if (add(root, ls + (max - j), j) < 0)
+			goto fail;
 	}
 	delist(ls, max);
 	return root;
@@ -431,9 +436,10 @@ fail:
 
 }
 
-int ngram_print(ngram_t *n, ngram_io_t *io, const int merge, const int tree, const int min, const int max) {
+int ngram_print(const ngram_t *n, ngram_io_t *io, const ngram_print_t *p) {
 	assert(io);
-	return tree ? print_tree(n, io, min, max, 0) : print_line(n, io, merge, min, max, 0);
+	assert(p);
+	return p->tree ? print_tree(n, io, p, 0) : print_line(n, io, p, 0);
 }
 
 int ngram_free(ngram_t *n) {

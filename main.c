@@ -177,9 +177,10 @@ static void *duplicate(const void *d, size_t l) {
 	return r ? memcpy(r, d, l) : r;
 }
 
-static int usage(const char *arg0) {
+static int usage(FILE *out, const char *arg0) {
+	assert(out);
 	static const char *fmt ="\
-usage: %s [-hibtwWvt] [-d delimiters] [-lH integer] [-n length]\n\n\
+usage: %s [-hibtwWvt] [-d delimiters] [-lH integer] [-n length] [-s separator]\n\n\
 Project : ngram - generate n-grams from arbitrary data\n\
 Author  : Richard James Howe\n\
 License : Public Domain\n\
@@ -195,12 +196,13 @@ Options:\n\n\
   -t        tree print instead of on n-gram per line\n\
   -v        increase verbosity\n\
   -d string use a list of delimiters, binary values are in hex, '\\xHH'\n\
+  -s char   set the output separator for printing results\n\
   -w        use white space as a set of delimiters\n\
   -W        use any character that is not alphanumeric as a delimiter\n\
   -l #      minimum n-gram count to print, maximum if -H not used\n\
   -H #      maximum n-gram count to generate\n\
   -n #      instead of using a delimiter, read # in bytes at a time\n\n";
-	return fprintf(stderr, fmt, arg0);
+	return fprintf(out, fmt, arg0);
 }
 
 static int prepare_set(uint8_t set[static 256], int (*comp)(int ch), int invert) {
@@ -246,34 +248,36 @@ int main(int argc, char **argv) {
 	uint8_t set[256] = { 0 };
 	char *odelim = NULL;
 	size_t dl = 0;
-	int min = -1, max = -1, bcount = 1, verbose = 0, tree = 0;
+	int bcount = 1, verbose = 0;
 	ngram_getopt_t opt = { .init = 0 };
-	for (int ch = 0; (ch = ngram_getopt(&opt, argc, argv, "hibtvl:H:d:wWn:")) != -1;) {
+	ngram_print_t p = { .min = -1, .max = -1, .tree = 0, .merge = 0, .sep = ',', };
+	for (int ch = 0; (ch = ngram_getopt(&opt, argc, argv, "hibtvl:H:d:wWn:s:")) != -1;) {
 		switch (ch) {
-		case 'h': usage(argv[0]); return 0;
+		case 'h': usage(stdout, argv[0]); return 0;
 		case 'i': ignore_case = 1; break;
 		case 'b': return -!!ngram_tests();
-		case 't': tree = 1; break;
+		case 't': p.tree = 1; break;
 		case 'v': verbose++; break;
-		case 'l': min = atoi(opt.arg); break;
-		case 'H': max = atoi(opt.arg); break;
+		case 'l': p.min = atoi(opt.arg); break;
+		case 'H': p.max = atoi(opt.arg); break;
+		case 's': p.sep = opt.arg[0]; break;
 		case 'd': delims = duplicate(opt.arg, strlen(opt.arg)); odelim = opt.arg; break;
 		case 'w': delims = set; dl = prepare_set(set, isspace, 0); break;
 		case 'W': delims = set; dl = prepare_set(set, isalnum, 1); break;
 		case 'n': bcount = atoi(opt.arg); break;
 		default:
 			fprintf(stderr, "bad arg -- %c\n", ch);
-			usage(argv[0]);
+			usage(stderr, argv[0]);
 			return 1;
 		}
 	}
 	binary(stdin);
 	binary(stdout);
 
-	if (min < 0)
-		min = 1;
-	if (max < 0 || min >= max)
-		max = min;
+	if (p.min < 0)
+		p.min = 1;
+	if (p.max < 0 || p.min >= p.max)
+		p.max = p.min;
 	if (bcount <= 0) {
 		fprintf(stderr, "bad bcount -- %d", bcount);
 		return -1;
@@ -288,16 +292,22 @@ int main(int argc, char **argv) {
 		dl = r;
 	}
 
+	if (verbose) {
+		if (fprintf(stderr, "ngram generator: min = %d, max = %d, tree = %d\n", p.min, p.max, p.tree) < 0)
+			return 1;
+	}
+
 	ngram_io_t io = { .get = file_get, .put = file_put, .in = stdin, .out = stdout, };
 	clock_t begin = clock();
-	ngram_t *root = ngram(&io, max, delims, delims ? dl : (unsigned)bcount);
+	ngram_t *root = ngram(&io, p.max, delims, delims ? dl : (unsigned)bcount);
 	clock_t end = clock();
 	const double time = (double)(end - begin) / CLOCKS_PER_SEC;
 	if (!root) {
 		fprintf(stderr, "ngram generation failed\n");
 		return 1;
 	}
-	if (ngram_print(root, &io, delims == NULL, tree, min, max) < 0) {
+	p.merge = !p.tree && delims == NULL;
+	if (ngram_print(root, &io, &p) < 0) {
 		fprintf(stderr, "ngram print failed\n");
 		return 1;
 	}

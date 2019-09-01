@@ -11,6 +11,10 @@ all: ${TARGET}
 run: ${TARGET}
 	./${TARGET}
 
+${TARGET}.o: ${TARGET}.c ${TARGET}.h
+
+main.o: main.c lib${TARGET}.a ${TARGET}.h
+
 ${TARGET}: lib${TARGET}.a main.o
 
 test: ngram.c.ngram
