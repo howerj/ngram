@@ -1,22 +1,55 @@
-# ngram
+% ngram(1) | Constant Database
 
-	| Project | ngram: Generate ngrams            |
-	| ------- | --------------------------------- |
-	| Author  | Richard James Howe                |
-	| License | Public Domain                     |
-	| Email   | howe.r.j.89@gmail.com             |
-	| Website | <https://github.com/howerj/ngram> |
+# NAME
+
+NGRAM - An interface to the ngram library
+
+# SYNOPSES
+
+ngram -h
+
+# DESCRIPTION
+
+	Project: ngram - Generate ngrams            
+	Author:  Richard James Howe                
+	License: Public Domain                     
+	Email:   howe.r.j.89@gmail.com             
+	Website: <https://github.com/howerj/ngram> 
 
 Generate an [n-gram][] list from an input. The program acts a [Unix][]
 [filter][]. The program is built around a library that can read from an
 arbitrary source (and print to one), allowing it to be embedded in other
 applications.
 
-# License
+Input is taken from standard input and written to standard output,
+the program works on textual or binary data. Output is in the form
+of escaped strings. Non-zero is returned on error.
 
-Placed in the public domain, do what thou wilt.
+# OPTIONS
 
-# Building
+	-h        print this help message and exit successfully
+	-i        ignore case by converting upper to lower case
+	-b        run built in self tests
+	-t        tree print instead of on n-gram per line
+	-v        increase verbosity
+	-d string use a list of delimiters, binary values are in hex, '\xHH'
+	-s char   set the output separator for printing results
+	-w        use white space as a set of delimiters
+	-W        use any character that is not alphanumeric as a delimiter
+	-l #      minimum n-gram count to print, maximum if -H not used
+	-H #      maximum n-gram count to generate
+	-n #      instead of using a delimiter, read # in bytes at a time
+
+
+# RETURN CODE
+
+This program returns zero on success and non-zero on failure.
+
+# LICENSE
+
+Placed in the public domain, effectively, with the Unlicense, do what thou wilt.
+
+# BUILDING
 
 Build requirements are a [C][] compiler and [Make][]. To build:
 
@@ -26,7 +59,7 @@ To run the tests:
 
 	make test
 
-# Running
+# RUNNING
 
 For a full list of command line options, run "./ngram -h" (On Unixen) or
 "ngram.exe -h" on Windows.
@@ -66,7 +99,7 @@ Alternatively:
 
 Output can be given the form of a tree as well with the "-t" option.
 
-# Preprocessing text
+# PREPROCESSING TEXT
 
 This tool does not handle ignoring a set of characters when constructing 
 its [n-grams][]. Instead of adding these features to this tool the

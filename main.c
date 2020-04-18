@@ -179,12 +179,20 @@ static void *duplicate(const void *d, size_t l) {
 
 static int usage(FILE *out, const char *arg0) {
 	assert(out);
+	unsigned long version = 0;
+	ngram_version(&version);
+	const int o = (version >> 24) & 0xFF;
+	const int x = (version >> 16) & 0xFF;
+	const int y = (version >>  8) & 0xFF;
+	const int z = (version >>  0) & 0xFF;
 	static const char *fmt ="\
 usage: %s [-hibtwWvt] [-d delimiters] [-lH integer] [-n length] [-s separator]\n\n\
 Project : ngram - generate n-grams from arbitrary data\n\
 Author  : Richard James Howe\n\
-License : Public Domain\n\
+License : The Unlicense\n\
 Email   : howe.r.j.89@gmail.com\n\
+Version : %d.%d.%d\n\
+Options : %x\n\
 Website : <https://github.com/howerj/ngram>\n\n\
 Input is taken from standard input and written to standard output,\n\
 the program works on textual or binary data. Output is in the form\n\
@@ -202,7 +210,7 @@ Options:\n\n\
   -l #      minimum n-gram count to print, maximum if -H not used\n\
   -H #      maximum n-gram count to generate\n\
   -n #      instead of using a delimiter, read # in bytes at a time\n\n";
-	return fprintf(out, fmt, arg0);
+	return fprintf(out, fmt, arg0, x, y, z, o);
 }
 
 static int prepare_set(uint8_t set[static 256], int (*comp)(int ch), int invert) {

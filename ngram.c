@@ -32,6 +32,10 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+#ifndef NGRAM_VERSION
+#define NGRAM_VERSION (0x000000ul)
+#endif
+
 #ifdef NDEBUG
 #define DEBUGGING (0)
 #else
@@ -47,6 +51,14 @@ typedef struct {
 	size_t l;
 	uint8_t m[];
 } v_t;
+
+int ngram_version(unsigned long *version) {
+	assert(version);
+	unsigned long options = 0;
+	options |= DEBUGGING << 0;
+	*version = (options << 24) | NGRAM_VERSION;
+	return NGRAM_VERSION == 0 ? -1 : 0;
+}
 
 static int get(ngram_io_t *io) {
 	assert(io);
@@ -294,14 +306,14 @@ static int print_up(const ngram_t *n, ngram_io_t *io, const ngram_print_t *p) {
 	const int j = print_up(n->parent, io, p);
 	if (j < 0)
 		return -1;
-	r++;
+	r += j;
 	if (n->ml) {
 		const int q = output(0, 0, p, n->m, n->ml, io);
 		if (q < 0)
 			return -1;
 		r += q;
 	}
-	return 0;
+	return r;
 }
 
 static int print_line(const ngram_t *n, ngram_io_t *io, const ngram_print_t *p, int depth)  {
@@ -369,7 +381,7 @@ static int token(ngram_io_t *io, v_t **out, const int lmode, const uint8_t *deli
 		int ch = 0;
 		assert(delim);
 again:
-		for (ch = 0; (ch = get(io)) != -1; i++) {
+		for (; (ch = get(io)) != -1; i++) {
 			if (memchr(delim, ch, dlen))
 				break;
 			if (!(o = realloc(n, sizeof (*n) + i + 1))) {

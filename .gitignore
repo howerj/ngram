@@ -1,7 +1,10 @@
+*.1
 *.a
 *.exe
 *.ngram
 *.o
 *.txt
-dist
+hist
+install
+install/*
 ngram

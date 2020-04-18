@@ -32,5 +32,6 @@ ngram_t *ngram(ngram_io_t *io, int max, const uint8_t *delimiters, size_t length
 int ngram_print(const ngram_t *n, ngram_io_t *io, const ngram_print_t *p);
 int ngram_free(ngram_t *n);
 int ngram_tests(void); /* 0  = success or NDEBUG defined, negative on fail */
+int ngram_version(unsigned long *version);
 
 #endif
