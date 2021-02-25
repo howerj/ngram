@@ -1,4 +1,4 @@
-% ngram(1) | Constant Database
+% ngram(1) | N-Gram Generator
 
 # NAME
 
