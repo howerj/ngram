@@ -2,27 +2,7 @@
  * Author  : Richard James Howe
  * License : Public Domain
  * Email   : howe.r.j.89@gmail.com|
- * Website : <https://github.com/howerj/ngram>
- * To-Do List
- * - [x] implement n-gram collection
- * - [x] program must work on binary data
- * - [x] allow n-gram to be split on delimiter
- * - [x] turn into a library that can read from an arbitrary stream,
- *       remove the need for <stdio.h>.
- * - [x] minimal and maximal printing, print in sorted order with
- *       count first, better printing in general, allow merged
- *       n-gram printing for character n-grams.
- * - [x] implement binary search to speed up search
- * - [ ] implement binary search insertion to speed up n-gram generation
- * - [x] allow binary values to be escaped in delimiter string
- * - [x] optional tree printing
- * - [ ] use txt2man to generate manual page?
- * - [ ] add unit tests, assertions, and test fragments of input
- * - [x] allow more of the output format to be specified.
- * - [ ] allow regex as a delimiter (will require a binary regex engine),
- *   adapt the regex engine from <https://github.com/howerj/pickle>.
- * - [x] add options; n-gram min/max, ignore case?, specify delimiters, ...
- * - [ ] remove this To-Do list once all items have been completed */
+ * Website : <https://github.com/howerj/ngram> */
 
 #include "ngram.h"
 #include <stdint.h>
