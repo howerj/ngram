@@ -111,7 +111,10 @@ static int unescape(char *r, size_t length) {
 }
 
 /* Adapted from: <https://stackoverflow.com/questions/10404448>,
- * and then from <https://github.com/howerj/pickle> in 'main.c'. */
+ * and then from <https://github.com/howerj/pickle> in 'main.c'.
+ * This should be a header only library, and one which deals
+ * with numeric options as well (performing some error checking,
+ * and with unit tests). */
 static int ngram_getopt(ngram_getopt_t *opt, const int argc, char *const argv[], const char *fmt) {
 	assert(opt);
 	assert(fmt);
@@ -144,6 +147,7 @@ static int ngram_getopt(ngram_getopt_t *opt, const int argc, char *const argv[],
 			return RETURN_E;
 		if (!*opt->place)
 			opt->index++;
+		// TODO: Unflip this
 		/*if (opt->error && *fmt != ':')
 			(void)fprintf(stderr, "illegal option -- %c\n", opt->option);*/
 		return BADCH_E;
@@ -269,12 +273,14 @@ int main(int argc, char **argv) {
 		case 'l': p.min = atoi(opt.arg); break;
 		case 'H': p.max = atoi(opt.arg); break;
 		case 's': p.sep = opt.arg[0]; break;
+		/* BUG: Memory leak (specify 'd' twice). */
 		case 'd': delims = duplicate(opt.arg, strlen(opt.arg)); odelim = opt.arg; break;
+		/* TODO: Do not use locale dependent functions! */
 		case 'w': delims = set; dl = prepare_set(set, isspace, 0); break;
 		case 'W': delims = set; dl = prepare_set(set, isalnum, 1); break;
 		case 'n': bcount = atoi(opt.arg); break;
 		default:
-			fprintf(stderr, "bad arg -- %c\n", ch);
+			(void)fprintf(stderr, "bad arg -- %c\n", ch);
 			usage(stderr, argv[0]);
 			return 1;
 		}
@@ -287,14 +293,14 @@ int main(int argc, char **argv) {
 	if (p.max < 0 || p.min >= p.max)
 		p.max = p.min;
 	if (bcount <= 0) {
-		fprintf(stderr, "bad bcount -- %d", bcount);
-		return -1;
+		(void)fprintf(stderr, "bad bcount -- %d", bcount);
+		return 1;
 	}
 
 	if (delims && delims != set) {
 		const int r = unescape((char*)delims, strlen(odelim));
 		if (r < 0) {
-			fprintf(stderr, "invalid escape list -- %s\n", odelim);
+			(void)fprintf(stderr, "invalid escape list -- %s\n", odelim);
 			return 1;
 		}
 		dl = r;
@@ -311,12 +317,12 @@ int main(int argc, char **argv) {
 	clock_t end = clock();
 	const double time = (double)(end - begin) / CLOCKS_PER_SEC;
 	if (!root) {
-		fprintf(stderr, "ngram generation failed\n");
+		(void)fprintf(stderr, "ngram generation failed\n");
 		return 1;
 	}
 	p.merge = !p.tree && delims == NULL;
 	if (ngram_print(root, &io, &p) < 0) {
-		fprintf(stderr, "ngram print failed\n");
+		(void)fprintf(stderr, "ngram print failed\n");
 		return 1;
 	}
 	if (verbose) {

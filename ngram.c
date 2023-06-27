@@ -1,8 +1,13 @@
 /* Project : ngram.c - Generate n-grams
  * Author  : Richard James Howe
  * License : Public Domain
- * Email   : howe.r.j.89@gmail.com|
- * Website : <https://github.com/howerj/ngram> */
+ * Email   : howe.r.j.89@gmail.com
+ * Website : <https://github.com/howerj/ngram> 
+ *
+ * There are some bugs!
+ * - identical n-grams not put into the same bucket
+ * - There probables some others...
+ */
 
 #include "ngram.h"
 #include <stdint.h>
@@ -84,7 +89,7 @@ static int output(unsigned count, int docount, const ngram_print_t *p, const uin
 		switch (m[i]) {
 		case '\0': p = "\\0";  break;
 		case '\\': p = "\\\\"; break;
-		case '"':  p = "\"";   break;
+		case '"':  p = "\\\""; break;
 		case '\a': p = "\\a";  break;
 		case '\b': p = "\\b";  break;
 		case   27: p = "\\e";  break;
@@ -94,6 +99,7 @@ static int output(unsigned count, int docount, const ngram_print_t *p, const uin
 		case '\t': p = "\\t";  break;
 		case '\v': p = "\\v";  break;
 		default:
+			// TODO: Remove locale dependent code
 			if (!isprint(m[i]))
 				snprintf(s, sizeof s, "\\x%X", m[i]);
 		}
@@ -171,6 +177,7 @@ static int grow(ngram_t *tree, ngram_t *n) {
 				tree->ns[i] = n;
 				break;
 			}
+			// TODO: Take length into a account
 			const int m = compare(chld->m, n->m, MIN(chld->ml, n->ml));
 			//assert(m || chld->ml != n->ml); /* should not be inserting already existing nodes */
 			if (m > 0) {
@@ -203,7 +210,8 @@ static ngram_t *find(ngram_t *n, v_t *v) {
 		while (r >= l) {
 			long m = l + (r - l) / 2;
 			ngram_t *chld = n->ns[m];
-			/* if v->l != chld->ml optimize by checking last character */
+			/* if v->l != chld->ml optimize by checking last character$a
+			 * TODO: Take length into account? */
 			const int k = compare(chld->m, v->m, MIN(chld->ml, v->l));
 			if (!k && chld->ml == v->l)
 				return chld;
@@ -441,6 +449,7 @@ int ngram_free(ngram_t *n) {
 int ngram_tests(void) {
 	if (!DEBUGGING)
 		return 0;
+	/* TODO: Built in self-tests! */
 	return 0;
 }
 

@@ -8,6 +8,20 @@ NGRAM - An interface to the ngram library
 
 ngram -h
 
+# TODO
+
+**THIS IS A WORK IN PROGRESS AND HAS BUGS**.
+
+* [ ] Fix bugs, there are some egregious ones.
+* [ ] Turn into header only library with a driver.
+* [ ] Enumerate use cases; such as finding dictionaries
+  for compression (put together a pipeline and example
+  that makes a good dictionary from command line tools
+  including this one).
+* [ ] Test cases.
+* [ ] Fuzzing.
+* [ ] This program does not work with UTF-8, only ANSI/8-bit character sets.
+
 # DESCRIPTION
 
 	Project: ngram - Generate ngrams            
