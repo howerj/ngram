@@ -2,12 +2,7 @@
  * Author  : Richard James Howe
  * License : Public Domain
  * Email   : howe.r.j.89@gmail.com
- * Website : <https://github.com/howerj/ngram> 
- *
- * There are some bugs!
- * - identical n-grams not put into the same bucket
- * - There probables some others...
- */
+ * Website : <https://github.com/howerj/ngram> */
 
 #include "ngram.h"
 #include <stdint.h>
@@ -156,12 +151,18 @@ static inline int compare(void *m, void *n, size_t cnt) {
 	return memcmp(m, n, cnt);
 }
 
+static inline int ncmp(const uint8_t *a, const size_t alen, const uint8_t *b, const size_t blen) {
+	const int r = memcmp(a, b, MIN(alen, blen));
+	if (r != 0) return r;
+	return (alen < blen) ? -1 : (alen > blen);
+}
+
 static int grow(ngram_t *tree, ngram_t *n) {
 	assert(tree);
 	assert(n);
 	ngram_t **old = tree->ns;
-	tree->ns = realloc(tree->ns, (tree->nl + 1) * sizeof *tree->ns);
-	if (!(tree->ns)) {
+	void *nns = realloc(tree->ns, (tree->nl + 1) * sizeof *tree->ns);
+	if (!nns) {
 		for (size_t i = 0; i < tree->nl; i++)
 			unmk(old[i]);
 		free(tree->ns);
@@ -169,6 +170,7 @@ static int grow(ngram_t *tree, ngram_t *n) {
 		tree->nl = 0;
 		return -1;
 	}
+	tree->ns = nns;
 	if (BINARY_SEARCH) { /* should do binary search to find insert position...*/
 		tree->ns[tree->nl] = NULL;
 		for (size_t i = 0; i < tree->nl + 1; i++) {
@@ -177,9 +179,7 @@ static int grow(ngram_t *tree, ngram_t *n) {
 				tree->ns[i] = n;
 				break;
 			}
-			// TODO: Take length into a account
-			const int m = compare(chld->m, n->m, MIN(chld->ml, n->ml));
-			//assert(m || chld->ml != n->ml); /* should not be inserting already existing nodes */
+			const int m = ncmp(chld->m, chld->ml, n->m, n->ml);
 			if (m > 0) {
 				memmove(&tree->ns[i + 1], &tree->ns[i], (tree->nl - i) * sizeof *tree->ns);
 				tree->ns[i] = n;
@@ -210,9 +210,7 @@ static ngram_t *find(ngram_t *n, v_t *v) {
 		while (r >= l) {
 			long m = l + (r - l) / 2;
 			ngram_t *chld = n->ns[m];
-			/* if v->l != chld->ml optimize by checking last character$a
-			 * TODO: Take length into account? */
-			const int k = compare(chld->m, v->m, MIN(chld->ml, v->l));
+			const int k = ncmp(chld->m, chld->ml, v->m, v->l);
 			if (!k && chld->ml == v->l)
 				return chld;
 			if (k > 0)
@@ -274,7 +272,6 @@ static int print_tree(const ngram_t *n, ngram_io_t *io, const ngram_print_t *p, 
 		if (put('\n', io) < 0)
 			return -1;
 	}
-	r += 1;
 	const size_t l = n->nl;
 	for (size_t i = 0; i < l; i++) {
 		const int k = print_tree(n->ns[i], io, p, depth + !root);
