@@ -66,6 +66,10 @@ static int sput(const char *s, ngram_io_t *io) {
 	return i;
 }
 
+static int C_isascii(int ch) { return ch < 128 && ch >= 0; }
+static int C_iscntrl(int ch) { return (ch < 32 || ch == 127) && C_isascii(ch); }
+static int C_isprint(int ch) { return !C_iscntrl(ch) && C_isascii(ch); }
+
 static int output(unsigned count, int docount, const ngram_print_t *p, const uint8_t *m, size_t l, ngram_io_t *io) {
 	assert(m);
 	assert(p);
@@ -94,9 +98,9 @@ static int output(unsigned count, int docount, const ngram_print_t *p, const uin
 		case '\t': p = "\\t";  break;
 		case '\v': p = "\\v";  break;
 		default:
-			// TODO: Remove locale dependent code
-			if (!isprint(m[i]))
-				snprintf(s, sizeof s, "\\x%X", m[i]);
+			if (!C_isprint(m[i]))
+				if (snprintf(s, sizeof s, "\\x%02X", m[i]) < 0)
+					return -1;
 		}
 		r += strlen(p); /* strnlen(p, sizeof s) */
 		if (sput(p, io) < 0)
@@ -449,4 +453,5 @@ int ngram_tests(void) {
 	/* TODO: Built in self-tests! */
 	return 0;
 }
+
 

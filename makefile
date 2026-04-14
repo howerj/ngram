@@ -1,4 +1,4 @@
-VERSION = 0x010001
+VERSION = 0x010002
 CFLAGS  = -Wall -Wextra -std=c99 -pedantic -O2 -DNGRAM_VERSION=${VERSION} 
 TARGET  = ngram
 AR      = ar

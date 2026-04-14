@@ -2,7 +2,6 @@
  * <https://github.com/howerj/ngram */
 #include "ngram.h"
 #include <assert.h>
-#include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,8 +38,17 @@ typedef struct {
 
 static int ignore_case = 0;
 
+static int C_isspace(int ch) { return (ch >= 9 && ch <= 13) || ch == 32; }
+static int C_isupper(int ch) { return ch >= 65 && ch <= 90; }
+static int C_islower(int ch) { return ch >= 97 && ch <= 122; }
+static int C_isalpha(int ch) { return C_islower(ch) || C_isupper(ch); }
+static int C_isdigit(int ch) { return ch >= 48 && ch <= 57; }
+static int C_isalnum(int ch) { return C_isalpha(ch) || C_isdigit(ch); }
+static int C_isxdigit(int ch) { return (ch >= 65 && ch <= 70) || (ch >= 97 && ch <= 102) || C_isdigit(ch); }
+static int C_tolower(int ch) { return C_isupper(ch) ? ch ^ 0x20 : ch; }
+
 static int hexCharToNibble(int c) {
-	c = tolower(c);
+	c = C_tolower(c);
 	if ('a' <= c && c <= 'f')
 		return 0xa + c - 'a';
 	return c - '0';
@@ -50,7 +58,7 @@ static int file_get(void *in) {
 	assert(in);
 	const int r = fgetc((FILE*)in);
 	if (ignore_case && r != EOF)
-		return tolower(r);
+		return C_tolower(r);
 	return r;
 }
 
@@ -64,10 +72,10 @@ static int hexStr2ToInt(const char *str, int *const val) {
 	assert(str);
 	assert(val);
 	*val = 0;
-	if (!isxdigit(*str))
+	if (!C_isxdigit(*str))
 		return 0;
 	*val = hexCharToNibble(*str++);
-	if (!isxdigit(*str))
+	if (!C_isxdigit(*str))
 		return 1;
 	*val = (*val << 4) + hexCharToNibble(*str);
 	return 2;
@@ -255,6 +263,7 @@ static int stats(ngram_t *n, ngram_stats_t *s) {
 	return 0;
 }
 
+
 int main(int argc, char **argv) {
 	uint8_t *delims = NULL;
 	uint8_t set[256] = { 0 };
@@ -275,9 +284,8 @@ int main(int argc, char **argv) {
 		case 's': p.sep = opt.arg[0]; break;
 		/* BUG: Memory leak (specify 'd' twice). */
 		case 'd': delims = duplicate(opt.arg, strlen(opt.arg)); odelim = opt.arg; break;
-		/* TODO: Do not use locale dependent functions! */
-		case 'w': delims = set; dl = prepare_set(set, isspace, 0); break;
-		case 'W': delims = set; dl = prepare_set(set, isalnum, 1); break;
+		case 'w': delims = set; dl = prepare_set(set, C_isspace, 0); break;
+		case 'W': delims = set; dl = prepare_set(set, C_isalnum, 1); break;
 		case 'n': bcount = atoi(opt.arg); break;
 		default:
 			(void)fprintf(stderr, "bad arg -- %c\n", ch);
@@ -343,4 +351,6 @@ int main(int argc, char **argv) {
 	ngram_free(root);
 	return 0;
 }
+
+
 
